@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 1024 1024">
+  <!-- Generator: Adobe Illustrator 29.3.1, SVG Export Plug-In . SVG Version: 2.1.0 Build 151)  -->
+  <defs>
+    <style>
+      .st0 {
+        fill: #f39c12;
+      }
+
+      .st1 {
+        stroke-miterlimit: 4;
+        stroke-width: 1px;
+      }
+
+      .st1, .st2 {
+        fill: #fff;
+        stroke: #ddd;
+      }
+
+      .st2 {
+        stroke-miterlimit: 4;
+        stroke-width: 1px;
+      }
+
+      .st3 {
+        fill: #27ae60;
+      }
+
+      .st4 {
+        fill: #16a085;
+      }
+
+      .st5 {
+        fill: #d35400;
+      }
+
+      .st6 {
+        stroke: #fff;
+        stroke-linecap: round;
+        stroke-width: 12px;
+      }
+    </style>
+  </defs>
+  <g>
+    <rect class="st1" x="534.9" y="485.9" width="240" height="160" rx="15" ry="15" transform="translate(-61.2 1052) rotate(-75)"/>
+    <rect class="st0" x="549.9" y="500.9" width="210" height="130" rx="8" ry="8" transform="translate(-61.2 1052) rotate(-75)"/>
+    <circle class="st5" cx="655" cy="565.9" r="50"/>
+    <path class="st6" d="M637.3,535.3l35.4,61.2M624.3,583.6l61.2-35.4"/>
+  </g>
+  <g>
+    <rect class="st2" x="342" y="449.9" width="160" height="240" rx="15" ry="15" transform="translate(-169.5 178.7) rotate(-20)"/>
+    <rect class="st3" x="357" y="464.9" width="130" height="210" rx="8" ry="8" transform="translate(-169.5 178.7) rotate(-20)"/>
+    <circle class="st4" cx="422" cy="569.9" r="50"/>
+    <path class="st6" d="M410,537l23.9,65.8M389.1,581.9l65.8-23.9"/>
+  </g>
+</svg>

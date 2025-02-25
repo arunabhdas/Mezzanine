@@ -1,6 +1,7 @@
 {
   "images" : [
     {
+      "filename" : "mezzanine_back_2x.png",
       "idiom" : "vision",
       "scale" : "2x"
     }
