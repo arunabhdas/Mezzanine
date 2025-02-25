@@ -59,7 +59,18 @@ import RealityKit
             description: "A simple training flight to get familiar with the controls.",
             startPosition: SIMD3<Float>(0, 100, 0),
             startRotation: simd_quatf(ix: 0, iy: 0, iz: 0, r: 1),
-            checkpoints: [],
+            checkpoints: [
+                // Add at least one checkpoint to prevent empty array issues
+                Checkpoint(
+                    id: "cp1",
+                    position: SIMD3<Float>(500, 100, 0),
+                    radius: 100,
+                    requiredAltitudeMin: nil,
+                    requiredAltitudeMax: nil,
+                    requiredSpeed: nil,
+                    nextCheckpointDirection: nil
+                )
+            ],
             timeLimit: nil,
             environmentSettings: EnvironmentConditions(
                 windDirection: SIMD3<Float>(1, 0, 0),
@@ -218,6 +229,12 @@ import RealityKit
             frameTimeTotal = 0
         }
         
+        // NANFIX: Debug override - use fixed values instead of physics
+        // This bypasses all physics calculations to see if that's the source of NaNs
+        useFixedPositionForDebugging()
+        
+        // Comment out physics for testing
+        /*
         // Apply input smoothing
         applyInputSmoothing()
         
@@ -233,9 +250,25 @@ import RealityKit
         
         // Update missionProgress property
         missionProgress = missionSystem.getMissionProgress()
+        */
         
         // Update flight information for HUD
         updateFlightInfo()
+    }
+    
+    // Debug function to use fixed values instead of physics
+    private func useFixedPositionForDebugging() {
+        // Fixed position that shouldn't contain NaN
+        aircraft.position = SIMD3<Float>(0, 100, 0)
+        
+        // Fixed rotation - identity quaternion
+        aircraft.rotation = simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)
+        
+        // Fixed velocity
+        aircraft.velocity = SIMD3<Float>(0, 0, 0)
+        
+        // Fixed acceleration
+        aircraft.acceleration = SIMD3<Float>(0, 0, 0)
     }
     
     // Update flight information for HUD

@@ -4,6 +4,7 @@
 //
 //  Created by Coder on 2/25/25.
 //
+
 import SwiftUI
 import RealityKit
 import simd
@@ -756,7 +757,6 @@ struct FlightInstrumentsView: View {
         
         return Int(value)
     }
-
 }
 
 // Simplified attitude indicator
