@@ -102,6 +102,11 @@ struct CockpitView: View {
 // Custom RealityKit view for 3D flight scene
 struct FlightSceneView: View {
     var viewModel: FlightViewModel
+    @State private var flyingObjects: [FlyingObject] = []
+    @State private var lastUpdateTime: Date = Date()
+    
+    // Timer for updating flying objects
+    let timer = Timer.publish(every: 0.2, on: .main, in: .common).autoconnect()
     
     var body: some View {
         RealityView { content in
@@ -125,6 +130,14 @@ struct FlightSceneView: View {
             // Add sky entity
             rootEntity.addChild(createSkyEntity())
             
+            // Add dynamic flying objects container
+            let flyingObjectsEntity = Entity()
+            flyingObjectsEntity.name = "flyingObjects"
+            rootEntity.addChild(flyingObjectsEntity)
+            
+            // Add ground objects for reference
+            rootEntity.addChild(createGroundObjects())
+            
             // Add lighting
             addLighting(to: rootEntity)
             
@@ -137,13 +150,8 @@ struct FlightSceneView: View {
                 aircraft.position = viewModel.aircraft.position
                 aircraft.orientation = viewModel.aircraft.rotation
                 
-                // Ensure aircraft is always visible (useful for debugging)
-                let cameraPosition = viewModel.aircraft.position - SIMD3<Float>(0, -50, 200) // Position behind aircraft
-                
-                // Look at the aircraft (using visionOS compatible method)
-                let cameraTransform = Transform(scale: .one,
-                                             rotation: simd_quatf(from: SIMD3<Float>(0, 0, 1), to: normalize(viewModel.aircraft.position - cameraPosition)),
-                                             translation: cameraPosition)
+                // Update flying objects
+                updateFlyingObjects(in: content, aircraftPosition: viewModel.aircraft.position, aircraftVelocity: viewModel.aircraft.velocity)
             }
         }
         .onAppear {
@@ -152,7 +160,286 @@ struct FlightSceneView: View {
                 viewModel.gameState = .playing
                 viewModel.startGameLoop()
             }
+            
+            // Initialize flying objects
+            initializeFlyingObjects()
         }
+        .onDisappear {
+            // Clean up resources
+            flyingObjects.removeAll()
+        }
+        .onReceive(timer) { _ in
+            // Update tracking of flying objects and occasionally add new ones
+            let currentTime = Date()
+            let deltaTime = currentTime.timeIntervalSince(lastUpdateTime)
+            lastUpdateTime = currentTime
+            
+            // Update flying objects positions based on aircraft velocity
+            for i in 0..<flyingObjects.count {
+                var object = flyingObjects[i]
+                
+                // Move objects backward relative to aircraft velocity
+                let relativeVelocity = -viewModel.aircraft.velocity * Float(deltaTime) * 0.5
+                object.position += relativeVelocity
+                
+                // Check if object is too far behind and should be reset
+                let distanceToAircraft = distance(object.position, viewModel.aircraft.position)
+                if distanceToAircraft > 2000 || distanceToAircraft < 10 {
+                    // Reset object to a new position ahead of the aircraft
+                    object.position = generateNewFlyingObjectPosition(
+                        aircraftPosition: viewModel.aircraft.position,
+                        aircraftForward: viewModel.aircraft.rotation.act(SIMD3<Float>(0, 0, 1))
+                    )
+                }
+                
+                flyingObjects[i] = object
+            }
+            
+            // Occasionally add new objects
+            if Float.random(in: 0...1) < 0.05 { // 5% chance per timer tick
+                addNewFlyingObject()
+            }
+        }
+    }
+    
+    // Update flying objects in the scene
+    private func updateFlyingObjects(in content: RealityViewContent, aircraftPosition: SIMD3<Float>, aircraftVelocity: SIMD3<Float>) {
+        guard let flyingObjectsEntity = content.entities.first?.children.first(where: { $0.name == "flyingObjects" }) else {
+            return
+        }
+        
+        // Instead of removing and recreating all entities each time,
+        // update existing entities or add new ones as needed
+        
+        // First, create a map of existing entities by ID
+        var existingEntities = [String: Entity]()
+        for child in flyingObjectsEntity.children {
+            existingEntities[child.name] = child
+        }
+        
+        // Now update or create entities
+        for object in flyingObjects {
+            if let existingEntity = existingEntities[object.id] {
+                // Update existing entity's position and orientation
+                existingEntity.position = object.position
+                existingEntity.orientation = object.rotation
+                
+                // Remove from the map to track which ones we've processed
+                existingEntities.removeValue(forKey: object.id)
+            } else {
+                // Create a new entity for this object
+                let entity = generateFlyingObjectEntity(object)
+                flyingObjectsEntity.addChild(entity)
+            }
+        }
+        
+        // Remove any entities that don't have corresponding flying objects
+        // Use a temporary array to avoid modifying while iterating
+        for (id, entity) in existingEntities {
+            // Only remove if it's not one of our special entities
+            if id != "terrain" && id != "sky" && id != "aircraft" {
+                entity.removeFromParent()
+            }
+        }
+    }
+    
+    // Initialize flying objects array
+    private func initializeFlyingObjects() {
+        flyingObjects = []
+        
+        // Add initial flying objects (fewer for stability)
+        for _ in 0..<15 {
+            addNewFlyingObject()
+        }
+    }
+    
+    // Add a new flying object
+    private func addNewFlyingObject() {
+        guard flyingObjects.count < 100 else { return } // Limit the number of objects
+        
+        // Get forward vector with safety checks
+        var forwardVector = viewModel.aircraft.rotation.act(SIMD3<Float>(0, 0, 1))
+        if forwardVector.x.isNaN || forwardVector.y.isNaN || forwardVector.z.isNaN {
+            forwardVector = SIMD3<Float>(0, 0, 1) // Default to forward if NaN
+        }
+        
+        // Get position with safety checks
+        let position = generateNewFlyingObjectPosition(
+            aircraftPosition: validateVector3(viewModel.aircraft.position, defaultValue: SIMD3<Float>(0, 100, 0)),
+            aircraftForward: forwardVector
+        )
+        
+        // Create scale with safety checks
+        let scale = SIMD3<Float>(
+            clamp(Float.random(in: 0.5...2.0), 0.1, 10.0),
+            clamp(Float.random(in: 0.5...2.0), 0.1, 10.0),
+            clamp(Float.random(in: 0.5...2.0), 0.1, 10.0)
+        )
+        
+        // Create rotation with safety checks
+        let angle = clamp(Float.random(in: 0...Float.pi*2), 0, Float.pi*2)
+        let axis = validateVector(SIMD3<Float>(0, 1, 0), defaultValue: SIMD3<Float>(0, 1, 0))
+        let rotation = simd_quatf(angle: angle, axis: axis)
+        
+        let objectType: FlyingObjectType
+        let random = Float.random(in: 0...1)
+        if random < 0.7 {
+            objectType = .cloud
+        } else if random < 0.9 {
+            objectType = .bird
+        } else {
+            objectType = .aircraft
+        }
+        
+        let newObject = FlyingObject(
+            id: UUID().uuidString,
+            type: objectType,
+            position: position,
+            scale: scale,
+            rotation: rotation
+        )
+        
+        flyingObjects.append(newObject)
+    }
+    
+    // Helper to validate SIMD3 and ensure it doesn't contain NaN
+    private func validateVector3(_ vector: SIMD3<Float>, defaultValue: SIMD3<Float>) -> SIMD3<Float> {
+        return SIMD3<Float>(
+            vector.x.isNaN ? defaultValue.x : vector.x,
+            vector.y.isNaN ? defaultValue.y : vector.y,
+            vector.z.isNaN ? defaultValue.z : vector.z
+        )
+    }
+    
+    // Helper to clamp a value between min and max
+    private func clamp<T: Comparable>(_ value: T, _ min: T, _ max: T) -> T {
+        return Swift.min(Swift.max(value, min), max)
+    }
+    
+    // Generate position for a new flying object
+    private func generateNewFlyingObjectPosition(aircraftPosition: SIMD3<Float>, aircraftForward: SIMD3<Float>) -> SIMD3<Float> {
+        let distance = Float.random(in: 200...1500)
+        let horizontalAngle = Float.random(in: -Float.pi/2...Float.pi/2) // ±90° from forward
+        let verticalAngle = Float.random(in: -Float.pi/4...Float.pi/4) // ±45° up/down
+        
+        // Safety check for zero-length forward vector
+        guard length(aircraftForward) > 0.001 else {
+            // Fallback to default direction if forward vector is invalid
+            return aircraftPosition + SIMD3<Float>(0, 0, distance)
+        }
+        
+        // Calculate direction vector
+        let forwardNormalized = normalize(aircraftForward)
+        // Ensure we have a valid normalized vector
+        guard !forwardNormalized.x.isNaN && !forwardNormalized.y.isNaN && !forwardNormalized.z.isNaN else {
+            return aircraftPosition + SIMD3<Float>(0, 0, distance)
+        }
+        
+        let forwardRotated = simd_quatf(angle: horizontalAngle, axis: SIMD3<Float>(0, 1, 0)).act(forwardNormalized)
+        let direction = simd_quatf(angle: verticalAngle, axis: SIMD3<Float>(1, 0, 0)).act(forwardRotated)
+        
+        // Final safety check on the resulting direction
+        let safeDirection = validateVector(direction, defaultValue: SIMD3<Float>(0, 0, 1))
+        
+        // Generate position ahead of aircraft
+        return aircraftPosition + safeDirection * distance
+    }
+    
+    // Helper to validate a vector and ensure it doesn't contain NaN values
+    private func validateVector(_ vector: SIMD3<Float>, defaultValue: SIMD3<Float>) -> SIMD3<Float> {
+        if vector.x.isNaN || vector.y.isNaN || vector.z.isNaN || length(vector) < 0.001 {
+            return defaultValue
+        }
+        
+        // Normalize if needed, with safety
+        if abs(length(vector) - 1.0) > 0.001 {
+            let len = length(vector)
+            if len > 0.001 {
+                return vector / len
+            } else {
+                return defaultValue
+            }
+        }
+        
+        return vector
+    }
+    
+    // Create entity for a flying object based on its type
+    private func generateFlyingObjectEntity(_ object: FlyingObject) -> Entity {
+        let entity = Entity()
+        entity.name = object.id
+        
+        // Safety check for NaN values in position and scale
+        let safePosition = SIMD3<Float>(
+            object.position.x.isNaN ? 0 : object.position.x,
+            object.position.y.isNaN ? 0 : object.position.y,
+            object.position.z.isNaN ? 0 : object.position.z
+        )
+        
+        let safeScale = SIMD3<Float>(
+            object.scale.x.isNaN || object.scale.x <= 0 ? 1 : object.scale.x,
+            object.scale.y.isNaN || object.scale.y <= 0 ? 1 : object.scale.y,
+            object.scale.z.isNaN || object.scale.z <= 0 ? 1 : object.scale.z
+        )
+        
+        // Safety check for NaN in rotation quaternion
+        let safeRotation = validateQuaternion(object.rotation)
+        
+        entity.position = safePosition
+        entity.scale = safeScale
+        entity.orientation = safeRotation
+        
+        // Create mesh based on object type
+        var mesh: MeshResource
+        var material: SimpleMaterial
+        
+        switch object.type {
+        case .cloud:
+            // Simple cloud shape
+            mesh = .generateBox(width: 50, height: 30, depth: 50)
+            material = SimpleMaterial(color: .white.withAlphaComponent(0.8), roughness: 1.0, isMetallic: false)
+            
+        case .bird:
+            // Simple bird shape
+            mesh = .generateBox(width: 3, height: 1, depth: 5)
+            material = SimpleMaterial(color: .black, roughness: 0.5, isMetallic: false)
+            
+        case .aircraft:
+            // Simple aircraft shape
+            mesh = .generateBox(width: 20, height: 5, depth: 25)
+            material = SimpleMaterial(color: .gray, roughness: 0.3, isMetallic: true)
+        }
+        
+        let modelEntity = ModelEntity(mesh: mesh, materials: [material])
+        entity.addChild(modelEntity)
+        
+        return entity
+    }
+    
+    // Validate quaternion to ensure it's not NaN or zero
+    private func validateQuaternion(_ q: simd_quatf) -> simd_quatf {
+        if q.vector.x.isNaN || q.vector.y.isNaN || q.vector.z.isNaN || q.vector.w.isNaN ||
+           (abs(q.vector.x) < 0.00001 && abs(q.vector.y) < 0.00001 &&
+            abs(q.vector.z) < 0.00001 && abs(q.vector.w) < 0.00001) {
+            // Return identity quaternion if invalid
+            return simd_quatf(ix: 0, iy: 0, iz: 0, r: 1)
+        }
+        
+        // Normalize the quaternion if it's not already
+        let length = sqrt(q.vector.x*q.vector.x + q.vector.y*q.vector.y +
+                          q.vector.z*q.vector.z + q.vector.w*q.vector.w)
+        
+        if abs(length - 1.0) > 0.001 && length > 0.00001 {
+            // Normalize only if length is not too close to zero
+            return simd_quatf(
+                ix: q.vector.x / length,
+                iy: q.vector.y / length,
+                iz: q.vector.z / length,
+                r: q.vector.w / length
+            )
+        }
+        
+        return q
     }
     
     private func createAircraftEntity() -> Entity {
@@ -257,6 +544,62 @@ struct FlightSceneView: View {
         return terrain
     }
     
+    private func createGroundObjects() -> Entity {
+        let groundObjects = Entity()
+        groundObjects.name = "groundObjects"
+        
+        // Add trees, buildings, and other ground objects
+        for i in 0..<200 {
+            let isTree = Float.random(in: 0...1) < 0.7
+            let objectEntity = Entity()
+            
+            if isTree {
+                // Create a tree
+                let trunkHeight = Float.random(in: 10...30)
+                let trunkWidth = trunkHeight / 10
+                
+                // Trunk
+                let trunkMesh = MeshResource.generateBox(width: trunkWidth, height: trunkHeight, depth: trunkWidth)
+                let trunkMaterial = SimpleMaterial(color: .brown, roughness: 0.9, isMetallic: false)
+                let trunkEntity = ModelEntity(mesh: trunkMesh, materials: [trunkMaterial])
+                trunkEntity.position = SIMD3<Float>(0, trunkHeight/2, 0)
+                objectEntity.addChild(trunkEntity)
+                
+                // Foliage
+                let foliageWidth = Float.random(in: 3...6) * trunkWidth
+                let foliageMesh = MeshResource.generateSphere(radius: foliageWidth)
+                let foliageMaterial = SimpleMaterial(color: .green, roughness: 1.0, isMetallic: false)
+                let foliageEntity = ModelEntity(mesh: foliageMesh, materials: [foliageMaterial])
+                foliageEntity.position = SIMD3<Float>(0, trunkHeight, 0)
+                objectEntity.addChild(foliageEntity)
+            } else {
+                // Create a building
+                let buildingHeight = Float.random(in: 20...100)
+                let buildingWidth = Float.random(in: 10...50)
+                let buildingDepth = Float.random(in: 10...50)
+                
+                let buildingMesh = MeshResource.generateBox(width: buildingWidth, height: buildingHeight, depth: buildingDepth)
+                let buildingMaterial = SimpleMaterial(color: .gray, roughness: 0.7, isMetallic: false)
+                let buildingEntity = ModelEntity(mesh: buildingMesh, materials: [buildingMaterial])
+                buildingEntity.position = SIMD3<Float>(0, buildingHeight/2, 0)
+                objectEntity.addChild(buildingEntity)
+            }
+            
+            // Position randomly around the terrain
+            let radius = Float.random(in: 500...4000)
+            let angle = Float.random(in: 0...(2 * .pi))
+            objectEntity.position = SIMD3<Float>(
+                cos(angle) * radius,
+                -100, // Ground level
+                sin(angle) * radius
+            )
+            
+            groundObjects.addChild(objectEntity)
+        }
+        
+        return groundObjects
+    }
+    
     private func createSkyEntity() -> Entity {
         let sky = Entity()
         sky.name = "sky"
@@ -273,7 +616,8 @@ struct FlightSceneView: View {
         sky.addChild(skyboxEntity)
         
         // Add clouds (simplified for this example)
-        for _ in 0..<20 {
+        // Most clouds will be added dynamically as flying objects
+        for _ in 0..<5 {
             let cloudSize = Float.random(in: 100...300)
             let cloudMesh = MeshResource.generateBox(width: cloudSize, height: cloudSize/3, depth: cloudSize)
             let cloudMaterial = SimpleMaterial(color: .white.withAlphaComponent(0.8), roughness: 1.0, isMetallic: false)
@@ -316,6 +660,24 @@ struct FlightSceneView: View {
         
         rootEntity.addChild(pointLight)
     }
+}
+
+// MARK: - Flying Objects
+
+// Types of flying objects
+enum FlyingObjectType {
+    case cloud
+    case bird
+    case aircraft
+}
+
+// Structure to represent a flying object
+struct FlyingObject {
+    let id: String
+    let type: FlyingObjectType
+    var position: SIMD3<Float>
+    var scale: SIMD3<Float>
+    var rotation: simd_quatf
 }
 
 // HUD display with flight instruments
@@ -394,8 +756,8 @@ struct FlightInstrumentsView: View {
         
         return Int(value)
     }
-}
 
+}
 
 // Simplified attitude indicator
 struct AttitudeIndicatorView: View {
