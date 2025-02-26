@@ -27,6 +27,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		DC0A79FB2D6F0E2E003BA499 /* Exceptions for "Mezzanine" folder in "MezzanineTests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				dice_blue.usdz,
+			);
+			target = DC52F7452D6E509700DCF9A7 /* MezzanineTests */;
+		};
 		DC52F74C2D6E509700DCF9A7 /* Exceptions for "Mezzanine" folder in "Mezzanine" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -41,6 +48,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				DC52F74C2D6E509700DCF9A7 /* Exceptions for "Mezzanine" folder in "Mezzanine" target */,
+				DC0A79FB2D6F0E2E003BA499 /* Exceptions for "Mezzanine" folder in "MezzanineTests" target */,
 			);
 			path = Mezzanine;
 			sourceTree = "<group>";
