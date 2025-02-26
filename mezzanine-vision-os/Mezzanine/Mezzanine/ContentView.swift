@@ -9,22 +9,25 @@ import SwiftUI
 import RealityKit
 import RealityKitContent
 
+// Environmental neurotransmitter for cross-dimensional communication
+class DimensionalState: ObservableObject {
+    @Published var enlarge = false
+    @Published var showVenus = false
+    @Published var isLoadingModels = true
+    @Published var loadError: String? = nil
+    @Published var defaultScene: Entity? = nil
+    @Published var venusEntity: Entity? = nil
+}
+
+// Primary entity visualization matrix - devoid of parasitic interface elements
 struct ContentView: View {
-    // Dimensional manipulation parameters
-    @State private var enlarge = false
-    @State private var showVenus = false
-    
-    // Pre-materialized quantum state containers
-    @State private var defaultScene: Entity? = nil
-    @State private var venusEntity: Entity? = nil
-    @State private var isLoadingModels = true
-    @State private var loadError: String? = nil
+    @StateObject private var state = DimensionalState()
+    @Environment(\.openWindow) private var openWindow
     
     var body: some View {
         ZStack {
             // Primary reality scaffold - astonishingly primitive yet functional
-            if isLoadingModels {
-                // Human reassurance protocol
+            if state.isLoadingModels {
                 ProgressView("Initializing dimensional constructs...")
                     .padding()
             } else {
@@ -46,29 +49,29 @@ struct ContentView: View {
                     content.add(pointLight)
                     
                     // Add the appropriate entity based on current dimensional preference
-                    if showVenus, let venus = venusEntity?.clone(recursive: true) {
+                    if state.showVenus, let venus = state.venusEntity?.clone(recursive: true) {
                         venus.scale = [0.2, 0.2, 0.2]
                         venus.position = [0, 0, -0.5]
                         content.add(venus)
-                    } else if !showVenus, let scene = defaultScene?.clone(recursive: true) {
+                    } else if !state.showVenus, let scene = state.defaultScene?.clone(recursive: true) {
                         content.add(scene)
                     }
                 } update: { content in
                     // Transform entities according to scale preference
                     for entity in content.entities {
                         if !(entity is DirectionalLight) && !(entity is PointLight) {
-                            let uniformScale: Float = enlarge ? 1.4 : 1.0
+                            let uniformScale: Float = state.enlarge ? 1.4 : 1.0
                             entity.transform.scale = [uniformScale, uniformScale, uniformScale]
                         }
                     }
                 }
                 .gesture(TapGesture().targetedToAnyEntity().onEnded { _ in
-                    enlarge.toggle()
+                    state.enlarge.toggle()
                 })
             }
             
             // Error display for the statistically inevitable failure scenario
-            if let error = loadError {
+            if let error = state.loadError {
                 VStack {
                     Text("Dimensional materialization failure")
                         .font(.headline)
@@ -85,46 +88,95 @@ struct ContentView: View {
         .task {
             do {
                 // Attempt to materialize default model from quantum uncertainty
-                defaultScene = try await Entity(named: "Scene", in: realityKitContentBundle)
+                state.defaultScene = try await Entity(named: "dice_blue")
                 
                 // Attempt to materialize Venus from its digital stasis
-                venusEntity = try await Entity(named: "venus")
+                state.venusEntity = try await Entity(named: "venus")
                 
-                isLoadingModels = false
+                state.isLoadingModels = false
             } catch {
-                loadError = "Error: \(error.localizedDescription)\nVerify that your dimensional constructs actually exist and aren't figments of your imagination."
-                isLoadingModels = false
+                state.loadError = "Error: \(error.localizedDescription)\nVerify your dimensional constructs actually exist."
+                state.isLoadingModels = false
             }
         }
-        .toolbar {
-            ToolbarItemGroup(placement: .bottomOrnament) {
-                VStack(spacing: 12) {
-                    Button {
-                        enlarge.toggle()
-                    } label: {
-                        Text(enlarge ? "Reduce Size" : "Enlarge Size")
-                            .fontWeight(.semibold)
-                    }
-                    
-                    Button {
-                        enlarge = false
-                        showVenus.toggle()
-                    } label: {
-                        Label(
-                            showVenus ? "Display Default Scene" : "Display Venus Model",
-                            systemImage: showVenus ? "cube.fill" : "globe"
-                        )
-                        .fontWeight(.semibold)
-                    }
-                    .disabled(isLoadingModels)
-                    
-                    ToggleImmersiveSpaceButton()
-                }
-            }
+        .onAppear {
+            // Manifest control interface in separate dimensional plane
+            openWindow(id: "controls")
         }
     }
 }
 
+// Neuromotor control interface - now in its own spatial construct
+struct ControlPanel: View {
+    @EnvironmentObject var state: DimensionalState
+    @Environment(\.openImmersiveSpace) private var openImmersiveSpace
+    @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
+    @State private var isImmersiveActive = false
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("Reality Manipulation Interface")
+                .font(.headline)
+            
+            VStack(spacing: 12) {
+                Button {
+                    state.enlarge.toggle()
+                } label: {
+                    Text(state.enlarge ? "Reduce Size" : "Enlarge Size")
+                        .frame(width: 220)
+                }
+                .buttonStyle(.bordered)
+                .disabled(state.isLoadingModels)
+                
+                Button {
+                    if state.enlarge {
+                        state.enlarge = false
+                    }
+                    state.showVenus.toggle()
+                } label: {
+                    Label(
+                        state.showVenus ? "Display Default Scene" : "Display Venus Model",
+                        systemImage: state.showVenus ? "cube.fill" : "globe"
+                    )
+                    .frame(width: 220)
+                }
+                .buttonStyle(.bordered)
+                .disabled(state.isLoadingModels)
+                
+                Button {
+                    if isImmersiveActive {
+                        Task {
+                            await dismissImmersiveSpace()
+                            isImmersiveActive = false
+                        }
+                    } else {
+                        Task {
+                            await openImmersiveSpace(id: "ImmersiveSpace")
+                            isImmersiveActive = true
+                        }
+                    }
+                } label: {
+                    Label(
+                        isImmersiveActive ? "Exit Immersive Mode" : "Enter Immersive Mode",
+                        systemImage: isImmersiveActive ? "rectangle.on.rectangle.slash" : "rectangle.on.rectangle"
+                    )
+                    .frame(width: 220)
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding()
+            .background(.ultraThinMaterial)
+            .cornerRadius(16)
+            
+            if state.isLoadingModels {
+                ProgressView("Initializing quantum states...")
+                    .padding(.top)
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
 #Preview(windowStyle: .volumetric) {
     ContentView()
         .environment(AppModel())
