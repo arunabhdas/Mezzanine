@@ -31,6 +31,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				dice_blue.usdz,
+				venus.usdz,
 			);
 			target = DC52F7452D6E509700DCF9A7 /* MezzanineTests */;
 		};
